@@ -105,7 +105,7 @@ class Records:
         sys.stderr.write("Invalid value for money.\n")
       sys.stderr.write("Fail to add a record")
     else:#將item加入record並更新money
-      if(all_cat.is_category_valid(item[0], all_cat.categories)):
+      if(all_cat.is_category_valid(item[0])):
         record = Record(item[0], item[1], item[2])
         self._records.append(record)
         self._init_money += item[2]
@@ -156,7 +156,7 @@ class Records:
     印出涵蓋範圍之類別的所有紀錄"""
     
     if(sub_cat==[]):
-      sys.stderr.write("There is no such category calls \n")
+      sys.stderr.write("There is no such category.\n")
     else:
       tt_amount = 0
       print("{cat: <15s}{des: <15s}{amount: <15s}".format(cat = "Category", des = "Description", amount = "Amount"))
@@ -202,71 +202,49 @@ class Categories:
       print(f'{" "*4*level}-{L}')
   
   
-  def is_category_valid(self, cat, all_cat):
+  def is_category_valid(self, cat):
     """    確認cat這個類別是否存在於當前的all_cat中    """
-    # 3. Alternatively, define an inner function to do the recursion.
-    ans = False
-    if type(all_cat) in {list}:
-      for child in all_cat:
-        #print(child)
-        if type(child) == list:
-          ans = self.is_category_valid(cat, child)
-          if(ans==True): break
-        elif child == cat:
-          return True
-        else: pass
-    else:
-      if cat == all_cat: return True
-    return ans
+    for i in self._flatten(self.categories):
+      if i==cat: return True
+    return False
 
-  def find_subcategories(self, cat, all_cat,found):
+  def find_subcategories(self, cat):
     """
     找cat類別的子集所有元素
     回傳一個包含cat以及其子集所有元素的list
     """
-    
-    ans = []
-    same_level_f = False
-    if type(all_cat) == list:
-      for child in all_cat:
-        if type(child) == list and (same_level_f or found):#拆開下一個list
-          ans = ans + self.find_subcategories(cat, child, True)
-          same_level_f = False#關掉 不找後面的list
-        if type(child) == list and same_level_f==False :#純粹往下一層去找
-          ans = ans + self.find_subcategories(cat, child, False)
-        elif child == cat:#找到該類別了
-          same_level_f = True
-          ans = [cat]
-        elif(type(child) == list and found):#子list的子list
-          ans = ans + self.find_subcategories(cat, child, True)
-        elif (type(child) != list and found):  #他的子結構
-          ans.append(child)
-        else: same_level_f = False #找到的同一層級 如果下一個如果不是list就掰掰
-   
-    elif cat == all_cat: ans = [cat]
-      
-    return ans
-  # 1. Define the formal parameters so that a category name can be
-  # passed in and the method can be called recursively.
-  # 2. Recursively find the target category and call the
-  # self._flatten method to get the subcategories into a flat list.
-  # 3. Alternatively, define an inner function to do the recursion.
-  def _flatten(self):
-    pass
-  # 1. Define the formal parameters so that this method
-  # can be called recursively.
-  # 2. Recursively call self._flatten and return the flat list.
-  # 3. (FYI) The method name starts with an underscore to indicate that
-  # it is not intended to be called outside the class.
-  # 4. Alternatively, put flatten as an inner function of
-  # find_subcategories.
+    def find_subcategories_gen(cat, all_cat, found = False):  
+      same_level_f = False
+      if type(all_cat) == list:
+        for child in all_cat:
+          if type(child) == list and same_level_f==False:#拆開下一個list
+            yield from find_subcategories_gen(cat, child) #這裡要有from才可以一個一個抓出yield的東西
+          elif type(child)==list and same_level_f:
+            yield from self._flatten(child)
+            break
+          elif(child==cat):
+            same_level_f = True
+            yield cat
+      elif cat == all_cat: 
+        yield all_cat
+      else: yield None
+    return [i for i in find_subcategories_gen(cat, self.categories)]  
+
+  def _flatten(self, L):
+    if L is None: return
+    if type(L) == list:
+      for child in L:
+        for atom in self._flatten(child):
+          yield atom
+    else: yield L
+  
 
 categories = Categories()
 records = Records()
 while True:
   command = input('\nWhat do you want to do (add / view / delete / view categories / find / exit)?\n ')
   if command == 'add':
-    record = input('Add an expense or income record with categories,  description and amount (separate by spaces):\n')
+    record = input('Add an expense or income record with categories, description and amount (separate by spaces):\n')
     records.add(record, categories)
   elif command == 'view':
     records.view()
@@ -277,7 +255,7 @@ while True:
     categories.view(categories.categories, 0)
   elif command == 'find':
     category = input('Which category do you want to find? ')
-    target_categories = categories.find_subcategories(category, categories.categories, False)
+    target_categories = categories.find_subcategories(category)
     records.find(target_categories)
   elif command == 'exit':
     records.save()
